@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>사내 하계 휴가 계획 취합 시스템</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDKs (Compat version) -->
+  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Pretendard', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="bg-amber-500 text-white p-2 rounded-xl shadow-md">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-800">사내 하계 휴가 계획 취합 시스템</h1>
+          <p class="text-xs text-slate-500">Summer Vacation Schedule Collector</p>
+        </div>
+      </div>
+      
+      <!-- Tab Navigation -->
+      <nav class="flex bg-slate-100 p-1 rounded-xl">
+        <button id="tab-apply-btn" onclick="switchTab('apply')" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-amber-600 shadow-sm transition-all">
+          휴가 신청
+        </button>
+        <button id="tab-admin-btn" onclick="switchTab('admin')" class="px-4 py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition-all">
+          취합 현황 조회
+        </button>
+        <button id="tab-mail-btn" onclick="switchTab('mail')" class="px-4 py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition-all">
+          메일 양식 복사
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- DB Connection Status Indicator -->
+  <div class="max-w-6xl mx-auto w-full px-4 pt-4">
+    <div id="db-status-banner" class="bg-blue-50 border border-blue-200 text-blue-700 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+        </span>
+        <span id="db-status-text">서버 연결을 확인하고 있습니다...</span>
+      </div>
+      <span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold">자동 전환 모드</span>
+    </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto w-full px-4 py-6 flex-grow">
+    
+    <!-- SECTION 1: Vacation Application Form -->
+    <section id="section-apply" class="block max-w-2xl mx-auto">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-150 overflow-hidden">
+        <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-6 text-white">
+          <h2 class="text-xl font-bold">하계 휴가 계획 입력</h2>
+          <p class="text-amber-100 text-xs mt-1">부서 내 원활한 업무 협조 및 휴가 일정 조율을 위해 본인의 일정을 입력해 주세요.</p>
+        </div>
+        
+        <form id="vacation-form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-5">
+          <!-- 2 Column Inputs -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">사업부 <span class="text-rose-500">*</span></label>
+              <select id="input-division" required onchange="handleDivisionChange(this.value)" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+                <option value="">선택해 주세요</option>
+                <option value="경영관리실">경영관리실</option>
+                <option value="케미칼사업부">케미칼사업부</option>
+                <option value="바이오전자사업부">바이오전자사업부</option>
+                <option value="건설사업부">건설사업부</option>
+                <option value="그룹">그룹</option>
+                <option value="custom">직접 입력...</option>
+              </select>
+              <input type="text" id="input-division-custom" placeholder="사업부명 직접 입력" class="hidden mt-2 w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">부서명 <span class="text-rose-500">*</span></label>
+              <input type="text" id="input-department" required placeholder="예: 인사팀, 개발1팀" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">사번 <span class="text-rose-500">*</span></label>
+              <input type="text" id="input-emp-id" required placeholder="예: 20261042" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">이름 <span class="text-rose-500">*</span></label>
+              <input type="text" id="input-name" required placeholder="예: 홍길동" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+            </div>
+          </div>
+
+          <hr class="border-slate-100 my-2" />
+
+          <!-- Datepicker Section -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">휴가 시작일 <span class="text-rose-500">*</span></label>
+              <input type="date" id="input-start-date" required onchange="handleStartDateChange(this.value)" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">휴가 종료일 <span class="text-rose-500">*</span></label>
+              <input type="date" id="input-end-date" required class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+            </div>
+          </div>
+
+          <!-- Memo/Remarks -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">비고 (선택 사항)</label>
+            <textarea id="input-memo" rows="2" placeholder="전달사항이나 사유가 있다면 간단히 적어주세요." class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50"></textarea>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2">
+            <span>제출하기</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- SECTION 2: Gathered Admin View (Password Protected) -->
+    <section id="section-admin" class="hidden space-y-6">
+      
+      <!-- Password Protection View -->
+      <div id="admin-lock-screen" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center max-w-md mx-auto my-12">
+        <div class="mx-auto w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-800 mb-2">관리자 본인 인증</h3>
+        <p class="text-sm text-slate-500 mb-6">부서 통합 내역을 확인하려면 비밀번호를 입력해 주세요.<br>(기본 비밀번호: <span class="font-semibold text-amber-600">1234</span>)</p>
+        
+        <form onsubmit="handleAdminUnlock(event)" class="space-y-4">
+          <input type="password" id="admin-passcode" required placeholder="비밀번호 입력" class="w-full text-center px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+          <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md">
+            접속하기
+          </button>
+        </form>
+      </div>
+
+      <!-- Main Admin Panel (Hidden by default) -->
+      <div id="admin-panel" class="hidden space-y-6">
+        
+        <!-- Summary Dashboard Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-slate-500 font-medium">전체 신청인원</span>
+              <h4 id="stat-total" class="text-2xl font-bold text-slate-800 mt-1">0명</h4>
+            </div>
+            <div class="p-3 bg-amber-50 text-amber-500 rounded-xl">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-slate-500 font-medium">총 하계휴가 일수</span>
+              <h4 id="stat-total-days" class="text-2xl font-bold text-slate-800 mt-1">0일</h4>
+            </div>
+            <div class="p-3 bg-emerald-50 text-emerald-500 rounded-xl">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-slate-500 font-medium">평균 휴가 일수</span>
+              <h4 id="stat-avg-days" class="text-2xl font-bold text-slate-800 mt-1">0.0일</h4>
+            </div>
+            <div class="p-3 bg-blue-50 text-blue-500 rounded-xl">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-slate-500 font-medium">신청자 최다 부서</span>
+              <h4 id="stat-top-dept" class="text-lg font-bold text-slate-800 mt-1 truncate max-w-[150px]">-</h4>
+            </div>
+            <div class="p-3 bg-purple-50 text-purple-500 rounded-xl">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Actions Box -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <!-- Search bar -->
+            <div class="relative flex-grow">
+              <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </span>
+              <input type="text" id="admin-search" oninput="applyFilters()" placeholder="이름 또는 사번 검색" class="pl-9 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 text-sm w-full sm:w-60 bg-slate-50">
+            </div>
+            <!-- Division filter -->
+            <select id="admin-filter-division" onchange="applyFilters()" class="px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 text-sm bg-slate-50">
+              <option value="">사업부 전체</option>
+              <option value="경영관리실">경영관리실</option>
+              <option value="케미칼사업부">케미칼사업부</option>
+              <option value="바이오전자사업부">바이오전자사업부</option>
+              <option value="건설사업부">건설사업부</option>
+              <option value="그룹">그룹</option>
+            </select>
+          </div>
+
+          <!-- Excel/CSV Download Action Button -->
+          <div class="flex gap-2 w-full md:w-auto">
+            <button onclick="downloadCSV()" class="flex-grow sm:flex-grow-0 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl transition-all shadow-sm text-sm flex items-center justify-center space-x-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              <span>Excel(CSV) 취합본 다운로드</span>
+            </button>
+            <button onclick="lockAdminPanel()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-3 rounded-xl transition-all text-sm flex items-center justify-center" title="관리자 로그아웃">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-left">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">사업부</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">부서명</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">사번</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">이름</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">휴가 구분</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">휴가 기간</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">일수</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">비고</th>
+                  <th scope="col" class="px-6 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">작업</th>
+                </tr>
+              </thead>
+              <tbody id="vacation-table-body" class="bg-white divide-y divide-slate-200 text-sm text-slate-700">
+                <!-- Records injected here via JS -->
+              </tbody>
+            </table>
+            <!-- Empty state -->
+            <div id="table-empty-state" class="hidden p-12 text-center text-slate-500">
+              등록된 휴가 계획이 없습니다. 직원들에게 메일을 발송하여 신청을 유도해 보세요.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: Email Template Helper -->
+    <section id="section-mail" class="hidden max-w-3xl mx-auto">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800">사내 공지용 메일 양식 복사</h2>
+          <p class="text-sm text-slate-500 mt-1">임직원들에게 메일을 보내 하계휴가 정보를 원클릭으로 손쉽게 취합할 수 있도록 안내문 템플릿을 제공합니다.</p>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-150 rounded-xl p-4 flex items-start space-x-3 text-amber-900 text-sm">
+          <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div>
+            <p class="font-medium">안내 팁</p>
+            <p class="text-xs text-amber-700 mt-1">이메일에 첨부할 수 있도록 현재 페이지의 고유 링크가 본문에 자동으로 포함되어 있습니다. 내용을 알맞게 수정한 후 우측 하단에서 '복사' 버튼을 눌러 아웃룩(Outlook)이나 사내 메일 쓰기창에 붙여넣으세요.</p>
+          </div>
+        </div>
+
+        <!-- Copyable Subject -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">메일 제목</label>
+          <div class="flex gap-2">
+            <input type="text" id="mail-subject" value="[공지] 2026년 임직원 하계휴가 계획서 일정 등록 및 입력 요청" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 bg-slate-50">
+            <button onclick="copyToClipboard('mail-subject', '메일 제목이 복사되었습니다.')" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold px-4 py-2 rounded-xl text-sm transition-all flex items-center space-x-1.5 flex-shrink-0">
+              <span>복사</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Copyable Body -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">메일 내용</label>
+          <div class="relative">
+            <textarea id="mail-body" rows="12" class="w-full px-4 py-4 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 bg-slate-50 whitespace-pre-wrap leading-relaxed">안녕하세요, 임직원 여러분.
+인사총무팀입니다.
+
+부서 내 원활한 업무 협조 및 휴가 조율을 위해 2026년 하계(여름) 휴가 계획 취합을 진행합니다.
+모든 임직원 여러분께서는 아래 링크에 접속하시어 하계 휴가 일정을 입력하여 주시기 바랍니다.
+
+■ 대상: 전 부서 임직원 전체
+■ 취합 항목: 사업부, 부서명, 사번, 이름, 휴가 기간
+■ 등록 기한: 2026년 [월/일] 까지
+■ 등록 방법: 아래 링크에서 간단히 작성 후 제출
+
+▶ [하계 휴가 등록 링크]
+{CURRENT_URL}
+
+작성하신 내용은 자동 취합 후 각 부서장님께 실시간 공유되어 부서별 휴가 일정 조율에 활용될 예정이오니 기한 내 입력을 협조해 주시기 바랍니다.
+
+감사합니다.</textarea>
+            <div class="absolute bottom-4 right-4">
+              <button onclick="copyToClipboard('mail-body', '메일 본문이 복사되었습니다.')" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all flex items-center space-x-1.5 shadow-md">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                </svg>
+                <span>메일 내용 전체 복사</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+    <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
+      <p>본 시스템은 사내 메일 발송용 보급형 연동 모듈을 탑재하고 있습니다.</p>
+      <p>© 2026 HR Systems Group. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Application Logic Code (JavaScript) -->
+  <script>
+    // --- STATE MANAGEMENT ---
+    let vacationRecords = [];
+    let isAdminUnlocked = false;
+    let isFirebaseReady = false;
+
+    // Default configuration for demo & fallbacks
+    const DEFAULT_APP_ID = 'corporate-vacation-planner';
+    const storageKey = 'local_vacations_data';
+
+    // UI Configuration & Form Handling
+    window.onload = function () {
+      setInitialDates();
+      setupDynamicUrlInMailTemplate();
+      initAppConnection();
+    }
+
+    // Set today as minimum start date
+    function setInitialDates() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('input-start-date').value = today;
+      document.getElementById('input-end-date').value = today;
+      document.getElementById('input-start-date').min = today;
+      document.getElementById('input-end-date').min = today;
+    }
+
+    // Auto inject current page URL into the email text
+    function setupDynamicUrlInMailTemplate() {
+      const mailBodyTextarea = document.getElementById('mail-body');
+      if (mailBodyTextarea) {
+        const currentUrl = window.location.href;
+        mailBodyTextarea.value = mailBodyTextarea.value.replace('{CURRENT_URL}', currentUrl);
+      }
+    }
+
+    // Handle Start Date change to auto-adjust End Date minimum limit
+    function handleStartDateChange(startDateVal) {
+      const endDateInput = document.getElementById('input-end-date');
+      endDateInput.min = startDateVal;
+      if (endDateInput.value < startDateVal) {
+        endDateInput.value = startDateVal;
+      }
+    }
+
+    // Tab Switch Logic
+    function switchTab(tabName) {
+      // Hide all sections
+      document.getElementById('section-apply').classList.add('hidden');
+      document.getElementById('section-admin').classList.add('hidden');
+      document.getElementById('section-mail').classList.add('hidden');
+
+      // Reset Tab Styles
+      const applyBtn = document.getElementById('tab-apply-btn');
+      const adminBtn = document.getElementById('tab-admin-btn');
+      const mailBtn = document.getElementById('tab-mail-btn');
+
+      [applyBtn, adminBtn, mailBtn].forEach(btn => {
+        btn.className = "px-4 py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition-all";
+      });
+
+      // Show Selected Section & Apply styles
+      if (tabName === 'apply') {
+        document.getElementById('section-apply').classList.remove('hidden');
+        applyBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg bg-white text-amber-600 shadow-sm transition-all";
+      } else if (tabName === 'admin') {
+        document.getElementById('section-admin').classList.remove('hidden');
+        adminBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg bg-white text-amber-600 shadow-sm transition-all";
+        
+        // Show/Hide unlock block depending on authentication state
+        if (isAdminUnlocked) {
+          document.getElementById('admin-lock-screen').classList.add('hidden');
+          document.getElementById('admin-panel').classList.remove('hidden');
+        } else {
+          document.getElementById('admin-lock-screen').classList.remove('hidden');
+          document.getElementById('admin-panel').classList.add('hidden');
+        }
+      } else if (tabName === 'mail') {
+        document.getElementById('section-mail').classList.remove('hidden');
+        mailBtn.className = "px-4 py-2 text-sm font-semibold rounded-lg bg-white text-amber-600 shadow-sm transition-all";
+      }
+    }
+
+    // Show Custom Input if "직접 입력" selected
+    function handleDivisionChange(value) {
+      const customInput = document.getElementById('input-division-custom');
+      if (value === 'custom') {
+        customInput.classList.remove('hidden');
+        customInput.required = true;
+      } else {
+        customInput.classList.add('hidden');
+        customInput.required = false;
+        customInput.value = '';
+      }
+    }
+
+    // --- TOAST SYSTEM ---
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const bgColor = type === 'success' ? 'bg-slate-950' : 'bg-rose-600';
+      
+      toast.className = `${bgColor} text-white px-5 py-3 rounded-xl shadow-xl flex items-center space-x-2 text-sm font-medium transition-all duration-300 opacity-0 transform translate-y-2 pointer-events-auto`;
+      toast.innerHTML = `
+        <span>${message}</span>
+      `;
+      
+      container.appendChild(toast);
+      
+      // Trigger animations
+      setTimeout(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+      }, 50);
+
+      // Dismiss toast
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // --- DATABASE & SYNC SYSTEM ---
+    let dbRef;
+    let appId = typeof __app_id !== 'undefined' ? __app_id : DEFAULT_APP_ID;
+
+    async function initAppConnection() {
+      const banner = document.getElementById('db-status-banner');
+      const statusText = document.getElementById('db-status-text');
+
+      // Check if global firebase config is available
+      const hasFirebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config;
+
+      if (hasFirebaseConfig) {
+        try {
+          const config = JSON.parse(__firebase_config);
+          firebase.initializeApp(config);
+          const auth = firebase.auth();
+          const db = firebase.firestore();
+
+          // Rule 3: Auth Before Queries
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await auth.signInWithCustomToken(__initial_auth_token);
+          } else {
+            await auth.signInAnonymously();
+          }
+
+          // Rule 1: Strict Paths
+          dbRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('vacation_plans');
+          isFirebaseReady = true;
+
+          // Load real-time listener (Rule 2 friendly: simple fetch + in-memory mapping)
+          dbRef.onSnapshot(snapshot => {
+            const records = [];
+            snapshot.forEach(doc => {
+              records.push({ id: doc.id, ...doc.data() });
+            });
+            vacationRecords = records;
+            updateAdminDashboard();
+          }, error => {
+            console.error("Firestore real-time sync failed:", error);
+            showToast("실시간 서버 데이터 동기화에 실패했습니다. 로컬 저장소로 안전하게 연동됩니다.", "error");
+            loadLocalFallback();
+          });
+
+          banner.className = "bg-amber-50 border border-amber-200 text-amber-700 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between";
+          statusText.innerText = "안전하게 클라우드 데이터베이스 서버와 실시간으로 동기화 중입니다.";
+
+        } catch (err) {
+          console.error("Firebase init failed, switching to LocalStorage mode:", err);
+          loadLocalFallback();
+        }
+      } else {
+        // Fallback directly if config absent
+        loadLocalFallback();
+      }
+    }
+
+    function loadLocalFallback() {
+      const banner = document.getElementById('db-status-banner');
+      const statusText = document.getElementById('db-status-text');
+      
+      isFirebaseReady = false;
+      const cached = localStorage.getItem(storageKey);
+      if (cached) {
+        try {
+          vacationRecords = JSON.parse(cached);
+        } catch(e) {
+          vacationRecords = [];
+        }
+      }
+      
+      banner.className = "bg-amber-50 border border-amber-250 text-amber-800 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between";
+      statusText.innerText = "단독 로컬 전용 브라우저 데이터베이스 모드로 구동 중입니다.";
+      updateAdminDashboard();
+    }
+
+    // --- DATA SUBMISSION ---
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+
+      // Retrieve and validate values
+      let division = document.getElementById('input-division').value;
+      if (division === 'custom') {
+        division = document.getElementById('input-division-custom').value.trim();
+      }
+      
+      const department = document.getElementById('input-department').value.trim();
+      const empId = document.getElementById('input-emp-id').value.trim();
+      const name = document.getElementById('input-name').value.trim();
+      const startDate = document.getElementById('input-start-date').value;
+      const endDate = document.getElementById('input-end-date').value;
+      const memo = document.getElementById('input-memo').value.trim();
+      
+      // Changed to single static vacation type for summer plans
+      const vType = '하계휴가';
+
+      // Check dates
+      if (new Date(endDate) < new Date(startDate)) {
+        showToast("휴가 종료일은 시작일보다 이전일 수 없습니다.", "error");
+        return;
+      }
+
+      const newRecord = {
+        division,
+        department,
+        empId,
+        name,
+        type: vType,
+        startDate,
+        endDate,
+        memo,
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        if (isFirebaseReady && dbRef) {
+          await dbRef.add(newRecord);
+        } else {
+          // Local storage path fallback
+          newRecord.id = 'loc_' + Date.now();
+          vacationRecords.push(newRecord);
+          localStorage.setItem(storageKey, JSON.stringify(vacationRecords));
+          updateAdminDashboard();
+        }
+
+        showToast(`${name}님의 하계 휴가 계획이 성공적으로 접수되었습니다! 🌴`);
+        
+        // Reset specific parts of form (keep division and department to ease multiple inputs)
+        document.getElementById('input-emp-id').value = '';
+        document.getElementById('input-name').value = '';
+        document.getElementById('input-memo').value = '';
+        setInitialDates();
+        
+      } catch (err) {
+        console.error("Save failed:", err);
+        showToast("데이터를 저장하는 도중 오류가 발생했습니다.", "error");
+      }
+    }
+
+    // --- ADMIN MODULE ---
+    function handleAdminUnlock(event) {
+      event.preventDefault();
+      const passcode = document.getElementById('admin-passcode').value;
+      
+      // Standard security configuration (default: 1234)
+      if (passcode === '1234') {
+        isAdminUnlocked = true;
+        document.getElementById('admin-lock-screen').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        document.getElementById('admin-passcode').value = '';
+        showToast("관리자 권한이 인증되었습니다.");
+        updateAdminDashboard();
+      } else {
+        showToast("올바르지 않은 관리자 비밀번호입니다.", "error");
+      }
+    }
+
+    function lockAdminPanel() {
+      isAdminUnlocked = false;
+      document.getElementById('admin-lock-screen').classList.remove('hidden');
+      document.getElementById('admin-panel').classList.add('hidden');
+      showToast("관리자 세션이 만료되었습니다.");
+    }
+
+    // Real-Time dashboard rendering and calculations
+    function updateAdminDashboard() {
+      if (!isAdminUnlocked) return;
+
+      applyFilters();
+    }
+
+    // Admin List filter function (Strict Rule 2 compliant: perform in JS memory)
+    function applyFilters() {
+      const searchVal = document.getElementById('admin-search').value.toLowerCase().trim();
+      const divisionFilter = document.getElementById('admin-filter-division').value;
+
+      let filtered = vacationRecords;
+
+      // Filter by division selection
+      if (divisionFilter) {
+        filtered = filtered.filter(item => item.division === divisionFilter);
+      }
+
+      // Filter by Search Text (Name, Dept, or Employee ID)
+      if (searchVal) {
+        filtered = filtered.filter(item => 
+          (item.name && item.name.toLowerCase().includes(searchVal)) || 
+          (item.empId && item.empId.toLowerCase().includes(searchVal)) ||
+          (item.department && item.department.toLowerCase().includes(searchVal))
+        );
+      }
+
+      // Render Dashboard Analytics Card Stats
+      document.getElementById('stat-total').innerText = `${vacationRecords.length}명`;
+
+      // Calculate Total Summer Vacation Days & Average per person
+      let totalDays = 0;
+      vacationRecords.forEach(record => {
+        const sDate = new Date(record.startDate);
+        const eDate = new Date(record.endDate);
+        const daysDiff = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
+        totalDays += isNaN(daysDiff) ? 0 : daysDiff;
+      });
+      const avgDays = vacationRecords.length > 0 ? (totalDays / vacationRecords.length).toFixed(1) : '0.0';
+
+      document.getElementById('stat-total-days').innerText = `${totalDays}일`;
+      document.getElementById('stat-avg-days').innerText = `${avgDays}일`;
+
+      // Find top department
+      const deptCounts = {};
+      vacationRecords.forEach(r => {
+        if (r.department) {
+          deptCounts[r.department] = (deptCounts[r.department] || 0) + 1;
+        }
+      });
+      let topDept = '-';
+      let maxCount = 0;
+      for (const dept in deptCounts) {
+        if (deptCounts[dept] > maxCount) {
+          maxCount = deptCounts[dept];
+          topDept = `${dept} (${maxCount}명)`;
+        }
+      }
+      document.getElementById('stat-top-dept').innerText = topDept;
+
+      // Render Filtered Data Table Elements
+      const tbody = document.getElementById('vacation-table-body');
+      const emptyState = document.getElementById('table-empty-state');
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      } else {
+        emptyState.classList.add('hidden');
+      }
+
+      // Sort by Created At descending by default
+      filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+      filtered.forEach(record => {
+        // Calculate Days Difference
+        const sDate = new Date(record.startDate);
+        const eDate = new Date(record.endDate);
+        const daysDiff = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors";
+        tr.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap font-medium text-slate-800">${escapeHtml(record.division || '')}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-slate-600">${escapeHtml(record.department || '')}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-slate-500 font-mono">${escapeHtml(record.empId || '')}</td>
+          <td class="px-6 py-4 whitespace-nowrap font-medium text-slate-800">${escapeHtml(record.name || '')}</td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-semibold ${getBadgeColor(record.type)}">
+              ${escapeHtml(record.type || '하계휴가')}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-600">${record.startDate} ~ ${record.endDate}</td>
+          <td class="px-6 py-4 whitespace-nowrap font-bold text-amber-600">${daysDiff}일</td>
+          <td class="px-6 py-4 text-slate-500 max-w-[150px] truncate" title="${escapeHtml(record.memo || '')}">${escapeHtml(record.memo || '-')}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <button onclick="deleteRecord('${record.id}')" class="text-rose-500 hover:text-rose-700 font-semibold p-1.5 rounded-lg hover:bg-rose-50 transition-all">삭제</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function getBadgeColor(type) {
+      // Warm color for summer vacation
+      return 'bg-amber-100 text-amber-800';
+    }
+
+    // --- REWRITE ACTION: DELETE ENTRY ---
+    async function deleteRecord(id) {
+      try {
+        if (isFirebaseReady && dbRef) {
+          await dbRef.doc(id).delete();
+        } else {
+          vacationRecords = vacationRecords.filter(r => r.id !== id);
+          localStorage.setItem(storageKey, JSON.stringify(vacationRecords));
+          updateAdminDashboard();
+        }
+        showToast("선택하신 하계 휴가 정보가 삭제되었습니다.");
+      } catch (err) {
+        console.error("Delete failed:", err);
+        showToast("삭제 도중 오류가 발생했습니다.", "error");
+      }
+    }
+
+    // --- CLIPBOARD COPY UTILITY ---
+    function copyToClipboard(elementId, successMessage) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      
+      element.select();
+      element.setSelectionRange(0, 99999); // Mobile compatibility
+      
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          showToast(successMessage);
+        } else {
+          showToast("복사에 실패했습니다. 수동으로 텍스트를 복사해 주세요.", "error");
+        }
+      } catch (err) {
+        showToast("이 브라우저에서는 복사 기능을 지원하지 않습니다.", "error");
+      }
+    }
+
+    // --- CSV DOWNLOAD UTILITY ---
+    function downloadCSV() {
+      if (vacationRecords.length === 0) {
+        showToast("다운로드할 취합 데이터가 존재하지 않습니다.", "error");
+        return;
+      }
+
+      // Headers config
+      const headers = ["사업부", "부서명", "사번", "이름", "휴가 구분", "시작일", "종료일", "총 일수", "비고(사유)", "등록일자"];
+      
+      // Map records to rows
+      const rows = vacationRecords.map(record => {
+        const sDate = new Date(record.startDate);
+        const eDate = new Date(record.endDate);
+        const daysDiff = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
+        
+        return [
+          record.division || '',
+          record.department || '',
+          record.empId || '',
+          record.name || '',
+          record.type || '하계휴가',
+          record.startDate || '',
+          record.endDate || '',
+          `${daysDiff}일`,
+          (record.memo || '').replace(/"/g, '""'),
+          record.createdAt || ''
+        ];
+      });
+
+      // UTF-8 BOM to prevent excel broken korean letters
+      let csvContent = "\ufeff"; 
+      csvContent += headers.map(h => `"${h}"`).join(",") + "\r\n";
+      
+      rows.forEach(row => {
+        csvContent += row.map(val => `"${val}"`).join(",") + "\r\n";
+      });
+
+      // Create download anchor link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      
+      const today = new Date().toISOString().split('T')[0];
+      link.setAttribute("href", url);
+      link.setAttribute("download", `하계_휴가_계획_취합본_${today}.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast("엑셀 다운로드가 시작되었습니다.");
+    }
+
+    // Simple HTML sanitize to prevent XSS
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return str;
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
