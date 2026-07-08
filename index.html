@@ -86,7 +86,7 @@
                 <option value="경영관리실">경영관리실</option>
                 <option value="케미칼사업부">케미칼사업부</option>
                 <option value="바이오전자사업부">바이오전자사업부</option>
-                <option value="건설사업부">건설사업부</option>
+                <option value="건축사업실">건축사업실</option>
                 <option value="그룹">그룹</option>
                 <option value="custom">직접 입력...</option>
               </select>
@@ -95,14 +95,18 @@
 
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">부서명 <span class="text-rose-500">*</span></label>
-              <input type="text" id="input-department" required placeholder="예: 인사팀, 개발1팀" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+              <select id="input-department-select" required onchange="handleDepartmentChange(this.value)" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+                <option value="">사업부를 먼저 선택해 주세요</option>
+              </select>
+              <input type="text" id="input-department-custom" placeholder="부서명 직접 입력" class="hidden mt-2 w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
             </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">사번 <span class="text-rose-500">*</span></label>
-              <input type="text" id="input-emp-id" required placeholder="예: 20261042" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
+              <!-- 사번 입력 시 첫 문자를 실시간 대문자로 자동 치환 -->
+              <input type="text" id="input-emp-id" required oninput="this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1)" placeholder="예: H20261042" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-slate-50">
             </div>
 
             <div>
@@ -236,8 +240,7 @@
               <option value="경영관리실">경영관리실</option>
               <option value="케미칼사업부">케미칼사업부</option>
               <option value="바이오전자사업부">바이오전자사업부</option>
-              <option value="건설사업부">건설사업부</option>
-              <option value="그룹">그룹</option>
+              <option value="건축사업실">건축사업실</option>
             </select>
           </div>
 
@@ -366,14 +369,40 @@
     // 💡 [Vercel 배포 시 설정] 본인의 Firebase Config 정보를 아래 객체에 입력해주세요!
     // =========================================================================
     const YOUR_FIREBASE_CONFIG = {
-        apiKey: "AIzaSyBqxVCLJ4XKjKAVNzeaO9_cnA3qaX6Z10s",
-        authDomain: "company-summer-vacation.firebaseapp.com",
-        projectId: "company-summer-vacation",
-        storageBucket: "company-summer-vacation.firebasestorage.app",
-        messagingSenderId: "341074060513",
-        appId: "1:341074060513:web:b9c176fdd10d4d883503a0"
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
     // =========================================================================
+
+    // 2026년 대한민국 관공서 공휴일 및 대체공휴일 정의 (토, 일요일 제외)
+    const KOREAN_HOLIDAYS_2026 = new Set([
+      "2026-01-01", // 신정
+      "2026-02-16", "2026-02-17", "2026-02-18", // 설날 연휴
+      "2026-03-01", "2026-03-02", // 삼일절 및 대체공휴일
+      "2026-05-01", // 근로자의 날 (기념일 휴무 지원)
+      "2026-05-05", // 어린이날
+      "2026-05-24", "2026-05-25", // 부처님오신날 및 대체공휴일
+      "2026-06-03", // 제9회 전국동시지방선거 임시공휴일
+      "2026-06-06", // 현충일
+      "2026-07-17", // 제헌절 공휴일 지정
+      "2026-08-15", "2026-08-17", // 광복절 및 대체공휴일
+      "2026-09-24", "2026-09-25", "2026-09-26", // 추석 연휴
+      "2026-10-03", "2026-10-05", // 개천절 및 대체공휴일
+      "2026-10-09", // 한글날
+      "2026-12-25"  // 성탄절
+    ]);
+
+    // 사업부별 사전 정의된 부서 목록 데이터
+    const DEPARTMENTS_BY_DIVISION = {
+      "경영관리실": ["경영관리팀", "전산/지원파트", "기획팀", "회계팀", "원가파트", "내부회계관리팀"],
+      "케미칼사업부": ["영업팀", "수출팀", "생산팀", "생산파트", "품질관리파트", "지원팀", "공무파트", "계전파트", "자재물류파트", "환경안전파트", "인사총무파트", "전산파트"],
+      "건축사업실": ["건축팀", "부산현장", "고객지원팀"],
+      "바이오전자사업부": ["생산팀", "제조파트", "생산기술파트", "영업구매파트", "개발파트", "지원파트"]
+    };
 
     // --- STATE MANAGEMENT ---
     let vacationRecords = [];
@@ -467,6 +496,114 @@
         customInput.required = false;
         customInput.value = '';
       }
+
+      // 부서명 옵션 목록을 선택한 사업부에 따라 연동 갱신
+      updateDepartmentDropdown(value);
+    }
+
+    // 사업부 선택에 맞춰 부서명 선택 상자 업데이트
+    function updateDepartmentDropdown(division) {
+      const deptSelect = document.getElementById('input-department-select');
+      const deptCustomInput = document.getElementById('input-department-custom');
+      
+      // 초기화
+      deptSelect.innerHTML = '';
+      deptCustomInput.classList.add('hidden');
+      deptCustomInput.required = false;
+      deptCustomInput.value = '';
+
+      if (!division) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '사업부를 먼저 선택해 주세요';
+        deptSelect.appendChild(opt);
+        deptSelect.disabled = true;
+        return;
+      }
+
+      deptSelect.disabled = false;
+      const depts = DEPARTMENTS_BY_DIVISION[division];
+
+      if (depts) {
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '부서를 선택하세요';
+        deptSelect.appendChild(defaultOpt);
+
+        depts.forEach(dept => {
+          const opt = document.createElement('option');
+          opt.value = dept;
+          opt.textContent = dept;
+          deptSelect.appendChild(opt);
+        });
+
+        // 마지막은 무조건 '직접 입력'
+        const customOpt = document.createElement('option');
+        customOpt.value = 'custom';
+        customOpt.textContent = '직접 입력...';
+        deptSelect.appendChild(customOpt);
+        
+        deptSelect.required = true;
+      } else {
+        // 그룹 및 직접입력 등의 상황에서는 즉시 텍스트 입력으로 전환
+        const opt = document.createElement('option');
+        opt.value = 'custom';
+        opt.textContent = '부서 직접 입력하기';
+        deptSelect.appendChild(opt);
+        deptSelect.value = 'custom';
+        
+        deptCustomInput.classList.remove('hidden');
+        deptCustomInput.required = true;
+      }
+    }
+
+    // 부서 직접입력 여부 감지
+    function handleDepartmentChange(value) {
+      const deptCustomInput = document.getElementById('input-department-custom');
+      if (value === 'custom') {
+        deptCustomInput.classList.remove('hidden');
+        deptCustomInput.required = true;
+      } else {
+        deptCustomInput.classList.add('hidden');
+        deptCustomInput.required = false;
+        deptCustomInput.value = '';
+      }
+    }
+
+    // 주말과 2026 공휴일을 제외한 일수 계산용 헬퍼 함수
+    function getWorkdaysCount(startDateStr, endDateStr) {
+      if (!startDateStr || !endDateStr) return 0;
+      const start = new Date(startDateStr);
+      const end = new Date(endDateStr);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+      
+      let count = 0;
+      let current = new Date(start);
+      
+      while (current <= end) {
+        const dayOfWeek = current.getDay(); // 0: 일요일, 6: 토요일
+        const formattedDate = current.toISOString().split('T')[0];
+        
+        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+        const isHoliday = KOREAN_HOLIDAYS_2026.has(formattedDate);
+        
+        if (!isWeekend && !isHoliday) {
+          count++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      return count;
+    }
+
+    // 요일 한글 포맷 헬퍼 함수
+    function formatDateWithDayOfWeek(dateStr) {
+      if (!dateStr) return '';
+      const dateObj = new Date(dateStr);
+      if (isNaN(dateObj.getTime())) return dateStr;
+      
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      const dayOfWeek = days[dateObj.getDay()];
+      return `${dateStr}(${dayOfWeek})`;
     }
 
     // --- TOAST SYSTEM ---
@@ -503,9 +640,7 @@
       const banner = document.getElementById('db-status-banner');
       const statusText = document.getElementById('db-status-text');
 
-      // 1. 플랫폼 가상 프리뷰 전용 환경 변수 체크
       const hasPlatformConfig = typeof __firebase_config !== 'undefined' && __firebase_config;
-      // 2. 사용자가 직접 주입한 Firebase 설정 검사
       const hasUserConfig = YOUR_FIREBASE_CONFIG && YOUR_FIREBASE_CONFIG.apiKey && YOUR_FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
 
       if (hasPlatformConfig || hasUserConfig) {
@@ -516,18 +651,15 @@
           const auth = firebase.auth();
           const db = firebase.firestore();
 
-          // Rule 3: Auth Before Queries
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await auth.signInWithCustomToken(__initial_auth_token);
           } else {
             await auth.signInAnonymously();
           }
 
-          // Rule 1: Strict Paths
           dbRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('vacation_plans');
           isFirebaseReady = true;
 
-          // Load real-time listener (Rule 2 friendly: simple fetch + in-memory mapping)
           dbRef.onSnapshot(snapshot => {
             const records = [];
             snapshot.forEach(doc => {
@@ -549,7 +681,6 @@
           loadLocalFallback();
         }
       } else {
-        // Fallback directly if config absent
         loadLocalFallback();
       }
     }
@@ -583,17 +714,19 @@
         division = document.getElementById('input-division-custom').value.trim();
       }
       
-      const department = document.getElementById('input-department').value.trim();
+      let department = document.getElementById('input-department-select').value;
+      if (department === 'custom') {
+        department = document.getElementById('input-department-custom').value.trim();
+      }
+      
       const empId = document.getElementById('input-emp-id').value.trim();
       const name = document.getElementById('input-name').value.trim();
       const startDate = document.getElementById('input-start-date').value;
       const endDate = document.getElementById('input-end-date').value;
       const memo = document.getElementById('input-memo').value.trim();
       
-      // Changed to single static vacation type for summer plans
       const vType = '하계휴가';
 
-      // Check dates
       if (new Date(endDate) < new Date(startDate)) {
         showToast("휴가 종료일은 시작일보다 이전일 수 없습니다.", "error");
         return;
@@ -615,7 +748,6 @@
         if (isFirebaseReady && dbRef) {
           await dbRef.add(newRecord);
         } else {
-          // Local storage path fallback
           newRecord.id = 'loc_' + Date.now();
           vacationRecords.push(newRecord);
           localStorage.setItem(storageKey, JSON.stringify(vacationRecords));
@@ -624,7 +756,7 @@
 
         showToast(`${name}님의 하계 휴가 계획이 성공적으로 접수되었습니다! 🌴`);
         
-        // Reset specific parts of form (keep division and department to ease multiple inputs)
+        // Form field reset (keep division & department choice for convenience)
         document.getElementById('input-emp-id').value = '';
         document.getElementById('input-name').value = '';
         document.getElementById('input-memo').value = '';
@@ -641,8 +773,7 @@
       event.preventDefault();
       const passcode = document.getElementById('admin-passcode').value;
       
-      // Standard security configuration (default: 1234)
-      if (passcode === '9901') {
+      if (passcode === '1234') {
         isAdminUnlocked = true;
         document.getElementById('admin-lock-screen').classList.add('hidden');
         document.getElementById('admin-panel').classList.remove('hidden');
@@ -661,26 +792,21 @@
       showToast("관리자 세션이 만료되었습니다.");
     }
 
-    // Real-Time dashboard rendering and calculations
     function updateAdminDashboard() {
       if (!isAdminUnlocked) return;
-
       applyFilters();
     }
 
-    // Admin List filter function (Strict Rule 2 compliant: perform in JS memory)
     function applyFilters() {
       const searchVal = document.getElementById('admin-search').value.toLowerCase().trim();
       const divisionFilter = document.getElementById('admin-filter-division').value;
 
       let filtered = vacationRecords;
 
-      // Filter by division selection
       if (divisionFilter) {
         filtered = filtered.filter(item => item.division === divisionFilter);
       }
 
-      // Filter by Search Text (Name, Dept, or Employee ID)
       if (searchVal) {
         filtered = filtered.filter(item => 
           (item.name && item.name.toLowerCase().includes(searchVal)) || 
@@ -689,15 +815,12 @@
         );
       }
 
-      // Render Dashboard Analytics Card Stats
       document.getElementById('stat-total').innerText = `${vacationRecords.length}명`;
 
-      // Calculate Total Summer Vacation Days & Average per person
+      // Calculate Total Summer Vacation Days (excluding weekends & holidays)
       let totalDays = 0;
       vacationRecords.forEach(record => {
-        const sDate = new Date(record.startDate);
-        const eDate = new Date(record.endDate);
-        const daysDiff = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
+        const daysDiff = getWorkdaysCount(record.startDate, record.endDate);
         totalDays += isNaN(daysDiff) ? 0 : daysDiff;
       });
       const avgDays = vacationRecords.length > 0 ? (totalDays / vacationRecords.length).toFixed(1) : '0.0';
@@ -705,7 +828,6 @@
       document.getElementById('stat-total-days').innerText = `${totalDays}일`;
       document.getElementById('stat-avg-days').innerText = `${avgDays}일`;
 
-      // Find top department
       const deptCounts = {};
       vacationRecords.forEach(r => {
         if (r.department) {
@@ -722,7 +844,6 @@
       }
       document.getElementById('stat-top-dept').innerText = topDept;
 
-      // Render Filtered Data Table Elements
       const tbody = document.getElementById('vacation-table-body');
       const emptyState = document.getElementById('table-empty-state');
       tbody.innerHTML = '';
@@ -734,14 +855,11 @@
         emptyState.classList.add('hidden');
       }
 
-      // Sort by Created At descending by default
       filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
       filtered.forEach(record => {
-        // Calculate Days Difference
-        const sDate = new Date(record.startDate);
-        const eDate = new Date(record.endDate);
-        const daysDiff = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
+        // 주말 및 법정 공휴일을 완전히 배제한 일수 계산
+        const daysDiff = getWorkdaysCount(record.startDate, record.endDate);
 
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition-colors";
@@ -755,7 +873,9 @@
               ${escapeHtml(record.type || '하계휴가')}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-600">${record.startDate} ~ ${record.endDate}</td>
+          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-600">
+            ${formatDateWithDayOfWeek(record.startDate)} ~ ${formatDateWithDayOfWeek(record.endDate)}
+          </td>
           <td class="px-6 py-4 whitespace-nowrap font-bold text-amber-600">${daysDiff}일</td>
           <td class="px-6 py-4 text-slate-500 max-w-[150px] truncate" title="${escapeHtml(record.memo || '')}">${escapeHtml(record.memo || '-')}</td>
           <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -767,11 +887,9 @@
     }
 
     function getBadgeColor(type) {
-      // Warm color for summer vacation
       return 'bg-amber-100 text-amber-800';
     }
 
-    // --- REWRITE ACTION: DELETE ENTRY ---
     async function deleteRecord(id) {
       try {
         if (isFirebaseReady && dbRef) {
@@ -788,13 +906,12 @@
       }
     }
 
-    // --- CLIPBOARD COPY UTILITY ---
     function copyToClipboard(elementId, successMessage) {
       const element = document.getElementById(elementId);
       if (!element) return;
       
       element.select();
-      element.setSelectionRange(0, 99999); // Mobile compatibility
+      element.setSelectionRange(0, 99999);
       
       try {
         const successful = document.execCommand('copy');
@@ -808,21 +925,16 @@
       }
     }
 
-    // --- CSV DOWNLOAD UTILITY ---
     function downloadCSV() {
       if (vacationRecords.length === 0) {
         showToast("다운로드할 취합 데이터가 존재하지 않습니다.", "error");
         return;
       }
 
-      // Headers config
-      const headers = ["사업부", "부서명", "사번", "이름", "휴가 구분", "시작일", "종료일", "총 일수", "비고(사유)", "등록일자"];
+      const headers = ["사업부", "부서명", "사번", "이름", "휴가 구분", "시작일", "종료일", "총 실 근무일수", "비고(사유)", "등록일자"];
       
-      // Map records to rows
       const rows = vacationRecords.map(record => {
-        const sDate = new Date(record.startDate);
-        const eDate = new Date(record.endDate);
-        const daysDiff = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
+        const daysDiff = getWorkdaysCount(record.startDate, record.endDate);
         
         return [
           record.division || '',
@@ -830,15 +942,14 @@
           record.empId || '',
           record.name || '',
           record.type || '하계휴가',
-          record.startDate || '',
-          record.endDate || '',
+          formatDateWithDayOfWeek(record.startDate),
+          formatDateWithDayOfWeek(record.endDate),
           `${daysDiff}일`,
           (record.memo || '').replace(/"/g, '""'),
           record.createdAt || ''
         ];
       });
 
-      // UTF-8 BOM to prevent excel broken korean letters
       let csvContent = "\ufeff"; 
       csvContent += headers.map(h => `"${h}"`).join(",") + "\r\n";
       
@@ -846,7 +957,6 @@
         csvContent += row.map(val => `"${val}"`).join(",") + "\r\n";
       });
 
-      // Create download anchor link
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -863,7 +973,6 @@
       showToast("엑셀 다운로드가 시작되었습니다.");
     }
 
-    // Simple HTML sanitize to prevent XSS
     function escapeHtml(str) {
       if (typeof str !== 'string') return str;
       return str
